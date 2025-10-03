@@ -1,7 +1,4 @@
 using UnityEngine;
-using UnityEngine.Events;
-
-[System.Serializable] public class SideEvent : UnityEvent<string> { }
 
 public class BallController : MonoBehaviour
 {
@@ -10,32 +7,25 @@ public class BallController : MonoBehaviour
     [SerializeField] private float speedIncrease = 0.5f;
     [SerializeField] private float maxSpeed = 15f;
 
-    [Header("Eventos")]
-    public SideEvent OnGoal; // Dispara "Left" o "Right"
-
     private Rigidbody2D rb;
 
     private void Awake()
     {
-        rb = gameObject.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 0;
+        rb = GetComponent<Rigidbody2D>();
+        if (!rb) rb = gameObject.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 0f;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
-        // Físicas: rebote perfecto
-        PhysicsMaterial2D mat = new PhysicsMaterial2D("BallMat");
-        mat.bounciness = 1f;
-        mat.friction = 0f;
-        GetComponent<CircleCollider2D>().sharedMaterial = mat;
+        // Rebote perfecto
+        var col = GetComponent<CircleCollider2D>();
+        var mat = new PhysicsMaterial2D("BallMat") { bounciness = 1f, friction = 0f };
+        col.sharedMaterial = mat;
     }
 
-    private void Start()
-    {
-        Launch();
-    }
+    private void Start() => Launch();
 
     private void Launch()
     {
-        // Dirección inicial aleatoria izquierda o derecha
         float dirX = Random.value < 0.5f ? -1f : 1f;
         float dirY = Random.Range(-0.5f, 0.5f);
         rb.velocity = new Vector2(dirX, dirY).normalized * startSpeed;
@@ -45,29 +35,36 @@ public class BallController : MonoBehaviour
     {
         if (col.collider.CompareTag("Paddle"))
         {
-            // Aumentar un poco la velocidad en cada rebote con paleta
             float newSpeed = Mathf.Min(rb.velocity.magnitude + speedIncrease, maxSpeed);
             rb.velocity = rb.velocity.normalized * newSpeed;
+        }
+        else
+        {
+            // Mantener velocidad estable tras rebotar paredes
+            rb.velocity = rb.velocity.normalized * Mathf.Clamp(rb.velocity.magnitude, startSpeed, maxSpeed);
         }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("GoalLeft"))
+        if (other.CompareTag("GoalRight"))
         {
-            OnGoal?.Invoke("Right"); // Gana el jugador derecho
-            ResetBall(1);
+            GameManager.Instance.Padde2Scored();   // suma derecha
+            ResetBall(-1);                          // vuelve hacia la izquierda
         }
-        else if (other.CompareTag("GoalRight"))
+        else if (other.CompareTag("GoalLeft"))
         {
-            OnGoal?.Invoke("Left");  // Gana el jugador izquierdo
-            ResetBall(-1);
+            GameManager.Instance.Padde1Scored();   // suma izquierda
+            ResetBall(1);                           // vuelve hacia la derecha
         }
     }
 
     private void ResetBall(int dirX)
     {
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0f;
         rb.position = Vector2.zero;
+
         Vector2 dir = new Vector2(dirX, Random.Range(-0.5f, 0.5f)).normalized;
         rb.velocity = dir * startSpeed;
     }
